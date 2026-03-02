@@ -735,8 +735,17 @@ export async function runEmbeddedAttempt(
 
       // Ollama native API: bypass SDK's streamSimple and use direct /api/chat calls
       // for reliable streaming + tool calling support (#11828).
+      //
+      // This also fixes #11283: by routing through createOllamaStreamFn (which
+      // makes HTTP POST /api/chat requests), we never invoke the local 'ollama'
+      // CLI binary even when a remote endpoint is configured.  The URL is resolved
+      // from the model's stored baseUrl (from models.json, written by discovery)
+      // or the live provider config, ensuring a remote baseUrl set in
+      // models.providers.ollama.baseUrl is honoured end-to-end (fixes #8663).
       if (params.model.api === "ollama") {
-        // Use the resolved model baseUrl first so custom provider aliases work.
+        // Prefer the model's stored baseUrl (already processed by resolveOllamaApiBase
+        // during discovery) so custom provider aliases resolve correctly.
+        // Fall back to the live provider config then to the default localhost endpoint.
         const providerConfig = params.config?.models?.providers?.[params.model.provider];
         const modelBaseUrl =
           typeof params.model.baseUrl === "string" ? params.model.baseUrl.trim() : "";

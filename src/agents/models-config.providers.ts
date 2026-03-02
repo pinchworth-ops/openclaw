@@ -140,8 +140,10 @@ const QWEN_PORTAL_DEFAULT_COST = {
   cacheWrite: 0,
 };
 
-const OLLAMA_BASE_URL = OLLAMA_NATIVE_BASE_URL;
-const OLLAMA_API_BASE_URL = OLLAMA_BASE_URL;
+// Default Ollama native API base URL used as a fallback when no baseUrl is configured.
+// When the user sets models.providers.ollama.baseUrl, resolveOllamaApiBase() uses
+// that value instead (stripping any trailing /v1 for the native API path).
+const OLLAMA_API_BASE_URL = OLLAMA_NATIVE_BASE_URL;
 const OLLAMA_DEFAULT_CONTEXT_WINDOW = 128000;
 const OLLAMA_DEFAULT_MAX_TOKENS = 8192;
 const OLLAMA_DEFAULT_COST = {
@@ -220,16 +222,23 @@ type VllmModelsResponse = {
 /**
  * Derive the Ollama native API base URL from a configured base URL.
  *
- * Users typically configure `baseUrl` with a `/v1` suffix (e.g.
- * `http://192.168.20.14:11434/v1`) for the OpenAI-compatible endpoint.
- * The native Ollama API lives at the root (e.g. `/api/tags`), so we
- * strip the `/v1` suffix when present.
+ * When `models.providers.ollama.baseUrl` is set in user config (e.g.
+ * `http://192.168.20.14:11434/v1` for a remote instance), that value is
+ * used directly after stripping any trailing `/v1` suffix — the native
+ * Ollama API lives at the root path (e.g. `/api/tags`, `/api/chat`).
+ *
+ * Falls back to OLLAMA_API_BASE_URL (localhost:11434) only when no baseUrl
+ * is configured, i.e. when Ollama is expected to run locally with defaults.
+ * This fallback is intentional; it must NOT be used when a remote endpoint
+ * has been configured (fixes #8663).
  */
 export function resolveOllamaApiBase(configuredBaseUrl?: string): string {
   if (!configuredBaseUrl) {
+    // No user-configured baseUrl: fall back to the default local endpoint.
     return OLLAMA_API_BASE_URL;
   }
-  // Strip trailing slash, then strip /v1 suffix if present
+  // User has configured a remote or non-default baseUrl: use it exclusively.
+  // Strip trailing slash, then strip /v1 suffix if present (native API path).
   const trimmed = configuredBaseUrl.replace(/\/+$/, "");
   return trimmed.replace(/\/v1$/i, "");
 }
